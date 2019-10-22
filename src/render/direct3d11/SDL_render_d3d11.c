@@ -1,6 +1,6 @@
 /*
   Simple DirectMedia Layer
-  Copyright (C) 1997-2018 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 1997-2019 Sam Lantinga <slouken@libsdl.org>
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -1559,11 +1559,13 @@ D3D11_QueueDrawPoints(SDL_Renderer * renderer, SDL_RenderCommand *cmd, const SDL
     const float g = (float)(cmd->data.draw.g / 255.0f);
     const float b = (float)(cmd->data.draw.b / 255.0f);
     const float a = (float)(cmd->data.draw.a / 255.0f);
-    size_t i;
+    int i;
 
     if (!verts) {
         return -1;
     }
+
+    cmd->data.draw.count = count;
 
     for (i = 0; i < count; i++) {
         verts->pos.x = points[i].x + 0.5f;
@@ -1589,11 +1591,13 @@ D3D11_QueueFillRects(SDL_Renderer * renderer, SDL_RenderCommand *cmd, const SDL_
     const float g = (float)(cmd->data.draw.g / 255.0f);
     const float b = (float)(cmd->data.draw.b / 255.0f);
     const float a = (float)(cmd->data.draw.a / 255.0f);
-    size_t i;
+    int i;
 
     if (!verts) {
         return -1;
     }
+
+    cmd->data.draw.count = count;
 
     for (i = 0; i < count; i++) {
         verts->pos.x = rects[i].x;
@@ -1661,6 +1665,8 @@ D3D11_QueueCopy(SDL_Renderer * renderer, SDL_RenderCommand *cmd, SDL_Texture * t
     if (!verts) {
         return -1;
     }
+
+    cmd->data.draw.count = 1;
 
     verts->pos.x = dstrect->x;
     verts->pos.y = dstrect->y;
@@ -1742,6 +1748,8 @@ D3D11_QueueCopyEx(SDL_Renderer * renderer, SDL_RenderCommand *cmd, SDL_Texture *
     maxx = dstrect->w - center->x;
     miny = -center->y;
     maxy = dstrect->h - center->y;
+
+    cmd->data.draw.count = 1;
 
     verts->pos.x = minx;
     verts->pos.y = miny;
@@ -1854,6 +1862,8 @@ D3D11_UpdateVertexBuffer(SDL_Renderer *renderer,
             return -1;
         }
 
+        rendererData->vertexBufferSizes[vbidx] = dataSizeInBytes;
+
         ID3D11DeviceContext_IASetVertexBuffers(rendererData->d3dContext,
             0,
             1,
@@ -1889,7 +1899,7 @@ D3D11_UpdateViewport(SDL_Renderer * renderer)
          * with a non-empty viewport.
          */
         /* SDL_Log("%s, no viewport was set!\n", __FUNCTION__); */
-        return 0;
+        return -1;
     }
 
     /* Make sure the SDL viewport gets rotated to that of the physical display's rotation.
@@ -1989,6 +1999,7 @@ D3D11_SetDrawState(SDL_Renderer * renderer, const SDL_RenderCommand *cmd, ID3D11
     ID3D11ShaderResourceView *shaderResource;
     const SDL_BlendMode blendMode = cmd->data.draw.blend;
     ID3D11BlendState *blendState = NULL;
+    SDL_bool updateSubresource = SDL_FALSE;
 
     if (renderTargetView != rendererData->currentRenderTargetView) {
         ID3D11DeviceContext_OMSetRenderTargets(rendererData->d3dContext,
@@ -2000,7 +2011,10 @@ D3D11_SetDrawState(SDL_Renderer * renderer, const SDL_RenderCommand *cmd, ID3D11
     }
 
     if (rendererData->viewportDirty) {
-        D3D11_UpdateViewport(renderer);
+        if (D3D11_UpdateViewport(renderer) == 0) {
+            /* vertexShaderConstantsData.projectionAndView has changed */
+            updateSubresource = SDL_TRUE;
+        }
     }
 
     if (rendererData->cliprectDirty) {
@@ -2065,7 +2079,7 @@ D3D11_SetDrawState(SDL_Renderer * renderer, const SDL_RenderCommand *cmd, ID3D11
         rendererData->currentSampler = sampler;
     }
 
-    if (SDL_memcmp(&rendererData->vertexShaderConstantsData.model, newmatrix, sizeof (*newmatrix)) != 0) {
+    if (updateSubresource == SDL_TRUE || SDL_memcmp(&rendererData->vertexShaderConstantsData.model, newmatrix, sizeof (*newmatrix)) != 0) {
         SDL_memcpy(&rendererData->vertexShaderConstantsData.model, newmatrix, sizeof (*newmatrix));
         ID3D11DeviceContext_UpdateSubresource(rendererData->d3dContext,
             (ID3D11Resource *)rendererData->vertexShaderConstants,

@@ -1,6 +1,6 @@
 /*
   Simple DirectMedia Layer
-  Copyright (C) 1997-2018 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 1997-2019 Sam Lantinga <slouken@libsdl.org>
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -444,7 +444,7 @@ static int
 PSP_QueueDrawPoints(SDL_Renderer * renderer, SDL_RenderCommand *cmd, const SDL_FPoint * points, int count)
 {
     VertV *verts = (VertV *) SDL_AllocateRenderVertices(renderer, count * sizeof (VertV), 4, &cmd->data.draw.first);
-    size_t i;
+    int i;
 
     if (!verts) {
         return -1;
@@ -465,7 +465,7 @@ static int
 PSP_QueueFillRects(SDL_Renderer * renderer, SDL_RenderCommand *cmd, const SDL_FRect * rects, int count)
 {
     VertV *verts = (GLfloat *) SDL_AllocateRenderVertices(renderer, count * 2 * sizeof (VertV), 4, &cmd->data.draw.first);
-    size_t i;
+    int i;
 
     if (!verts) {
         return -1;
@@ -741,10 +741,10 @@ PSP_RunCommandQueue(SDL_Renderer * renderer, SDL_RenderCommand *cmd, void *verti
             case SDL_RENDERCMD_DRAW_POINTS: {
                 const size_t count = cmd->data.draw.count;
                 const VertV *verts = (VertV *) (gpumem + cmd->data.draw.first);
-                const Uint8 r = cmd->data.color.r;
-                const Uint8 g = cmd->data.color.g;
-                const Uint8 b = cmd->data.color.b;
-                const Uint8 a = cmd->data.color.a;
+                const Uint8 r = cmd->data.draw.r;
+                const Uint8 g = cmd->data.draw.g;
+                const Uint8 b = cmd->data.draw.b;
+                const Uint8 a = cmd->data.draw.a;
                 const Uint32 color = ((a << 24) | (b << 16) | (g << 8) | r);
                 /* !!! FIXME: we could cache draw state like color, texturing, etc */
                 sceGuColor(color);
@@ -759,10 +759,10 @@ PSP_RunCommandQueue(SDL_Renderer * renderer, SDL_RenderCommand *cmd, void *verti
             case SDL_RENDERCMD_DRAW_LINES: {
                 const size_t count = cmd->data.draw.count;
                 const VertV *verts = (VertV *) (gpumem + cmd->data.draw.first);
-                const Uint8 r = cmd->data.color.r;
-                const Uint8 g = cmd->data.color.g;
-                const Uint8 b = cmd->data.color.b;
-                const Uint8 a = cmd->data.color.a;
+                const Uint8 r = cmd->data.draw.r;
+                const Uint8 g = cmd->data.draw.g;
+                const Uint8 b = cmd->data.draw.b;
+                const Uint8 a = cmd->data.draw.a;
                 const Uint32 color = ((a << 24) | (b << 16) | (g << 8) | r);
                 /* !!! FIXME: we could cache draw state like color, texturing, etc */
                 sceGuColor(color);
@@ -777,10 +777,10 @@ PSP_RunCommandQueue(SDL_Renderer * renderer, SDL_RenderCommand *cmd, void *verti
             case SDL_RENDERCMD_FILL_RECTS: {
                 const size_t count = cmd->data.draw.count;
                 const VertV *verts = (VertV *) (gpumem + cmd->data.draw.first);
-                const Uint8 r = cmd->data.color.r;
-                const Uint8 g = cmd->data.color.g;
-                const Uint8 b = cmd->data.color.b;
-                const Uint8 a = cmd->data.color.a;
+                const Uint8 r = cmd->data.draw.r;
+                const Uint8 g = cmd->data.draw.g;
+                const Uint8 b = cmd->data.draw.b;
+                const Uint8 a = cmd->data.draw.a;
                 const Uint32 color = ((a << 24) | (b << 16) | (g << 8) | r);
                 /* !!! FIXME: we could cache draw state like color, texturing, etc */
                 sceGuColor(color);

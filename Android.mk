@@ -20,6 +20,7 @@ LOCAL_SRC_FILES := \
 	$(wildcard $(LOCAL_PATH)/src/audio/*.c) \
 	$(wildcard $(LOCAL_PATH)/src/audio/android/*.c) \
 	$(wildcard $(LOCAL_PATH)/src/audio/dummy/*.c) \
+	$(wildcard $(LOCAL_PATH)/src/audio/openslES/*.c) \
 	$(LOCAL_PATH)/src/atomic/SDL_atomic.c.arm \
 	$(LOCAL_PATH)/src/atomic/SDL_spinlock.c.arm \
 	$(wildcard $(LOCAL_PATH)/src/core/android/*.c) \
@@ -63,17 +64,24 @@ LOCAL_CFLAGS += \
 	-Wmissing-variable-declarations \
 	-Wfloat-conversion \
 	-Wshorten-64-to-32 \
-	-Wunreachable-code-return
+	-Wunreachable-code-return \
+	-Wshift-sign-overflow \
+	-Wunused-macros \
+	-Wstrict-prototypes \
+	-Wkeyword-macro \
+
 
 # Warnings we haven't fixed (yet)
 LOCAL_CFLAGS += -Wno-unused-parameter -Wno-sign-compare
  
 
-LOCAL_LDLIBS := -ldl -lGLESv1_CM -lGLESv2 -llog -landroid
+LOCAL_LDLIBS := -ldl -lGLESv1_CM -lGLESv2 -lOpenSLES -llog -landroid
 
 ifeq ($(NDK_DEBUG),1)
     cmd-strip :=
 endif
+
+LOCAL_STATIC_LIBRARIES := cpufeatures
 
 include $(BUILD_SHARED_LIBRARY)
 
@@ -124,3 +132,6 @@ LOCAL_MODULE := libhidapi
 LOCAL_LDLIBS := -llog
 
 include $(BUILD_SHARED_LIBRARY)
+
+$(call import-module,android/cpufeatures)
+

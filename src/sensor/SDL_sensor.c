@@ -1,6 +1,6 @@
 /*
   Simple DirectMedia Layer
-  Copyright (C) 1997-2018 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 1997-2019 Sam Lantinga <slouken@libsdl.org>
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -486,7 +486,7 @@ SDL_PrivateSensorUpdate(SDL_Sensor *sensor, float *data, int num_values)
     /* Post the event, if desired */
     posted = 0;
 #if !SDL_EVENTS_DISABLED
-    if (SDL_GetEventState(SDL_JOYAXISMOTION) == SDL_ENABLE) {
+    if (SDL_GetEventState(SDL_SENSORUPDATE) == SDL_ENABLE) {
         SDL_Event event;
         event.type = SDL_SENSORUPDATE;
         event.sensor.which = sensor->instance_id;
@@ -504,6 +504,10 @@ SDL_SensorUpdate(void)
 {
     int i;
     SDL_Sensor *sensor;
+
+    if (!SDL_WasInit(SDL_INIT_SENSOR)) {
+        return;
+    }
 
     SDL_LockSensors();
 

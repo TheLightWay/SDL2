@@ -1,6 +1,6 @@
 /*
   Simple DirectMedia Layer
-  Copyright (C) 1997-2018 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 1997-2019 Sam Lantinga <slouken@libsdl.org>
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -55,7 +55,8 @@ extern void SDL_GetJoystickGUIDInfo(SDL_JoystickGUID guid, Uint16 *vendor, Uint1
 extern SDL_bool SDL_IsJoystickPS4(Uint16 vendor_id, Uint16 product_id);
 
 /* Function to return whether a joystick is a Nintendo Switch Pro controller */
-extern SDL_bool SDL_IsJoystickNintendoSwitchPro(Uint16 vendor_id, Uint16 product_id);
+extern SDL_bool SDL_IsJoystickNintendoSwitchPro( Uint16 vendor_id, Uint16 product_id );
+extern SDL_bool SDL_IsJoystickNintendoSwitchProInputOnly(Uint16 vendor_id, Uint16 product_id);
 
 /* Function to return whether a joystick is a Steam Controller */
 extern SDL_bool SDL_IsJoystickSteamController(Uint16 vendor_id, Uint16 product_id);

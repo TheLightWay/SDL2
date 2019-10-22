@@ -1,6 +1,6 @@
 /*
   Simple DirectMedia Layer
-  Copyright (C) 1997-2018 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 1997-2019 Sam Lantinga <slouken@libsdl.org>
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -234,6 +234,10 @@ D3D_InitRenderState(D3D_RenderData *data)
     D3DMATRIX matrix;
 
     IDirect3DDevice9 *device = data->device;
+    IDirect3DDevice9_SetPixelShader(device, NULL);
+    IDirect3DDevice9_SetTexture(device, 0, NULL);
+    IDirect3DDevice9_SetTexture(device, 1, NULL);
+    IDirect3DDevice9_SetTexture(device, 2, NULL);
     IDirect3DDevice9_SetFVF(device, D3DFVF_XYZ | D3DFVF_DIFFUSE | D3DFVF_TEX1);
     IDirect3DDevice9_SetVertexShader(device, NULL);
     IDirect3DDevice9_SetRenderState(device, D3DRS_ZENABLE, D3DZB_FALSE);
@@ -690,7 +694,7 @@ D3D_LockTexture(SDL_Renderer * renderer, SDL_Texture * texture,
 static void
 D3D_UnlockTexture(SDL_Renderer * renderer, SDL_Texture * texture)
 {
-    /*D3D_RenderData *data = (D3D_RenderData *)renderer->driverdata;*/
+    D3D_RenderData *data = (D3D_RenderData *)renderer->driverdata;
     D3D_TextureData *texturedata = (D3D_TextureData *)texture->driverdata;
 
     if (!texturedata) {
@@ -706,7 +710,16 @@ D3D_UnlockTexture(SDL_Renderer * renderer, SDL_Texture * texture)
     } else {
         IDirect3DTexture9_UnlockRect(texturedata->texture.staging, 0);
         texturedata->texture.dirty = SDL_TRUE;
-   }
+        if (data->drawstate.texture == texture) {
+            data->drawstate.texture = NULL;
+            IDirect3DDevice9_SetPixelShader(data->device, NULL);
+            IDirect3DDevice9_SetTexture(data->device, 0, NULL);
+            if (texturedata->yuv) {
+                IDirect3DDevice9_SetTexture(data->device, 1, NULL);
+                IDirect3DDevice9_SetTexture(data->device, 2, NULL);
+            }
+        }
+    }
 }
 
 static int
@@ -788,7 +801,7 @@ D3D_QueueDrawPoints(SDL_Renderer * renderer, SDL_RenderCommand *cmd, const SDL_F
     const DWORD color = D3DCOLOR_ARGB(cmd->data.draw.a, cmd->data.draw.r, cmd->data.draw.g, cmd->data.draw.b);
     const size_t vertslen = count * sizeof (Vertex);
     Vertex *verts = (Vertex *) SDL_AllocateRenderVertices(renderer, vertslen, 0, &cmd->data.draw.first);
-    size_t i;
+    int i;
 
     if (!verts) {
         return -1;
@@ -812,7 +825,7 @@ D3D_QueueFillRects(SDL_Renderer * renderer, SDL_RenderCommand *cmd, const SDL_FR
     const DWORD color = D3DCOLOR_ARGB(cmd->data.draw.a, cmd->data.draw.r, cmd->data.draw.g, cmd->data.draw.b);
     const size_t vertslen = count * sizeof (Vertex) * 4;
     Vertex *verts = (Vertex *) SDL_AllocateRenderVertices(renderer, vertslen, 0, &cmd->data.draw.first);
-    size_t i;
+    int i;
 
     if (!verts) {
         return -1;
@@ -995,11 +1008,10 @@ D3D_QueueCopyEx(SDL_Renderer * renderer, SDL_RenderCommand *cmd, SDL_Texture * t
 }
 
 static int
-BindTextureRep(IDirect3DDevice9 *device, D3D_TextureRep *texture, DWORD sampler)
+UpdateDirtyTexture(IDirect3DDevice9 *device, D3D_TextureRep *texture)
 {
-    HRESULT result;
-
     if (texture->dirty && texture->staging) {
+        HRESULT result;
         if (!texture->texture) {
             result = IDirect3DDevice9_CreateTexture(device, texture->w, texture->h, 1, texture->usage,
                 PixelFormatToD3DFMT(texture->format), D3DPOOL_DEFAULT, &texture->texture, NULL);
@@ -1014,6 +1026,14 @@ BindTextureRep(IDirect3DDevice9 *device, D3D_TextureRep *texture, DWORD sampler)
         }
         texture->dirty = SDL_FALSE;
     }
+    return 0;
+}
+
+static int
+BindTextureRep(IDirect3DDevice9 *device, D3D_TextureRep *texture, DWORD sampler)
+{
+    HRESULT result;
+    UpdateDirtyTexture(device, texture);
     result = IDirect3DDevice9_SetTexture(device, sampler, (IDirect3DBaseTexture9 *)texture->texture);
     if (FAILED(result)) {
         return D3D_SetError("SetTexture()", result);
@@ -1117,6 +1137,13 @@ SetDrawState(D3D_RenderData *data, const SDL_RenderCommand *cmd)
         }
 
         data->drawstate.texture = texture;
+    } else if (texture) {
+        D3D_TextureData *texturedata = (D3D_TextureData *) texture->driverdata;
+        UpdateDirtyTexture(data->device, &texturedata->texture);
+        if (texturedata->yuv) {
+            UpdateDirtyTexture(data->device, &texturedata->utexture);
+            UpdateDirtyTexture(data->device, &texturedata->vtexture);
+        }
     }
 
     if (blend != data->drawstate.blend) {
@@ -1175,7 +1202,7 @@ SetDrawState(D3D_RenderData *data, const SDL_RenderCommand *cmd)
 
     if (data->drawstate.cliprect_dirty) {
         const SDL_Rect *viewport = &data->drawstate.viewport;
-        const SDL_Rect *rect = &cmd->data.cliprect.rect;
+        const SDL_Rect *rect = &data->drawstate.cliprect;
         const RECT d3drect = { viewport->x + rect->x, viewport->y + rect->y, viewport->x + rect->x + rect->w, viewport->y + rect->y + rect->h };
         IDirect3DDevice9_SetScissorRect(data->device, &d3drect);
         data->drawstate.cliprect_dirty = SDL_FALSE;
@@ -1206,7 +1233,7 @@ D3D_RunCommandQueue(SDL_Renderer * renderer, SDL_RenderCommand *cmd, void *verti
             IDirect3DVertexBuffer9_Release(vbo);
         }
 
-        if (FAILED(IDirect3DDevice9_CreateVertexBuffer(data->device, vertsize, usage, fvf, D3DPOOL_DEFAULT, &vbo, NULL))) {
+        if (FAILED(IDirect3DDevice9_CreateVertexBuffer(data->device, (UINT) vertsize, usage, fvf, D3DPOOL_DEFAULT, &vbo, NULL))) {
             vbo = NULL;
         }
         data->vertexBuffers[vboidx] = vbo;
@@ -1215,7 +1242,7 @@ D3D_RunCommandQueue(SDL_Renderer * renderer, SDL_RenderCommand *cmd, void *verti
 
     if (vbo) {
         void *ptr;
-        if (FAILED(IDirect3DVertexBuffer9_Lock(vbo, 0, vertsize, &ptr, D3DLOCK_DISCARD))) {
+        if (FAILED(IDirect3DVertexBuffer9_Lock(vbo, 0, (UINT) vertsize, &ptr, D3DLOCK_DISCARD))) {
             vbo = NULL;  /* oh well, we'll do immediate mode drawing.  :(  */
         } else {
             SDL_memcpy(ptr, vertices, vertsize);
@@ -1303,10 +1330,10 @@ D3D_RunCommandQueue(SDL_Renderer * renderer, SDL_RenderCommand *cmd, void *verti
                 const size_t first = cmd->data.draw.first;
                 SetDrawState(data, cmd);
                 if (vbo) {
-                    IDirect3DDevice9_DrawPrimitive(data->device, D3DPT_POINTLIST, first / sizeof (Vertex), count);
+                    IDirect3DDevice9_DrawPrimitive(data->device, D3DPT_POINTLIST, (UINT) (first / sizeof (Vertex)), (UINT) count);
                 } else {
                     const Vertex *verts = (Vertex *) (((Uint8 *) vertices) + first);
-                    IDirect3DDevice9_DrawPrimitiveUP(data->device, D3DPT_POINTLIST, count, verts, sizeof (Vertex));
+                    IDirect3DDevice9_DrawPrimitiveUP(data->device, D3DPT_POINTLIST, (UINT) count, verts, sizeof (Vertex));
                 }
                 break;
             }
@@ -1323,12 +1350,12 @@ D3D_RunCommandQueue(SDL_Renderer * renderer, SDL_RenderCommand *cmd, void *verti
                 SetDrawState(data, cmd);
 
                 if (vbo) {
-                    IDirect3DDevice9_DrawPrimitive(data->device, D3DPT_LINESTRIP, first / sizeof (Vertex), count - 1);
+                    IDirect3DDevice9_DrawPrimitive(data->device, D3DPT_LINESTRIP, (UINT) (first / sizeof (Vertex)), (UINT) (count - 1));
                     if (close_endpoint) {
-                        IDirect3DDevice9_DrawPrimitive(data->device, D3DPT_POINTLIST, (first / sizeof (Vertex)) + (count - 1), 1);
+                        IDirect3DDevice9_DrawPrimitive(data->device, D3DPT_POINTLIST, (UINT) ((first / sizeof (Vertex)) + (count - 1)), 1);
                     }
                 } else {
-                    IDirect3DDevice9_DrawPrimitiveUP(data->device, D3DPT_LINESTRIP, count - 1, verts, sizeof (Vertex));
+                    IDirect3DDevice9_DrawPrimitiveUP(data->device, D3DPT_LINESTRIP, (UINT) (count - 1), verts, sizeof (Vertex));
                     if (close_endpoint) {
                         IDirect3DDevice9_DrawPrimitiveUP(data->device, D3DPT_POINTLIST, 1, &verts[count-1], sizeof (Vertex));
                     }
@@ -1343,7 +1370,7 @@ D3D_RunCommandQueue(SDL_Renderer * renderer, SDL_RenderCommand *cmd, void *verti
                 if (vbo) {
                     size_t offset = 0;
                     for (i = 0; i < count; ++i, offset += 4) {
-                        IDirect3DDevice9_DrawPrimitive(data->device, D3DPT_TRIANGLEFAN, (first / sizeof (Vertex)) + offset, 2);
+                        IDirect3DDevice9_DrawPrimitive(data->device, D3DPT_TRIANGLEFAN, (UINT) ((first / sizeof (Vertex)) + offset), 2);
                     }
                 } else {
                     const Vertex *verts = (Vertex *) (((Uint8 *) vertices) + first);
@@ -1361,7 +1388,7 @@ D3D_RunCommandQueue(SDL_Renderer * renderer, SDL_RenderCommand *cmd, void *verti
                 if (vbo) {
                     size_t offset = 0;
                     for (i = 0; i < count; ++i, offset += 4) {
-                        IDirect3DDevice9_DrawPrimitive(data->device, D3DPT_TRIANGLEFAN, (first / sizeof (Vertex)) + offset, 2);
+                        IDirect3DDevice9_DrawPrimitive(data->device, D3DPT_TRIANGLEFAN, (UINT) ((first / sizeof (Vertex)) + offset), 2);
                     }
                 } else {
                     const Vertex *verts = (Vertex *) (((Uint8 *) vertices) + first);
@@ -1385,7 +1412,7 @@ D3D_RunCommandQueue(SDL_Renderer * renderer, SDL_RenderCommand *cmd, void *verti
                 IDirect3DDevice9_SetTransform(data->device, D3DTS_VIEW, (D3DMATRIX*)&d3dmatrix);
 
                 if (vbo) {
-                    IDirect3DDevice9_DrawPrimitive(data->device, D3DPT_TRIANGLEFAN, first / sizeof (Vertex), 2);
+                    IDirect3DDevice9_DrawPrimitive(data->device, D3DPT_TRIANGLEFAN, (UINT) (first / sizeof (Vertex)), 2);
                 } else {
                     IDirect3DDevice9_DrawPrimitiveUP(data->device, D3DPT_TRIANGLEFAN, 2, verts, sizeof (Vertex));
                 }
@@ -1491,11 +1518,23 @@ D3D_RenderPresent(SDL_Renderer * renderer)
 static void
 D3D_DestroyTexture(SDL_Renderer * renderer, SDL_Texture * texture)
 {
+    D3D_RenderData *renderdata = (D3D_RenderData *) renderer->driverdata;
     D3D_TextureData *data = (D3D_TextureData *) texture->driverdata;
+
+    if (renderdata->drawstate.texture == texture) {
+        renderdata->drawstate.texture = NULL;
+        IDirect3DDevice9_SetPixelShader(renderdata->device, NULL);
+        IDirect3DDevice9_SetTexture(renderdata->device, 0, NULL);
+        if (data->yuv) {
+            IDirect3DDevice9_SetTexture(renderdata->device, 1, NULL);
+            IDirect3DDevice9_SetTexture(renderdata->device, 2, NULL);
+        }
+    }
 
     if (!data) {
         return;
     }
+
     D3D_DestroyTextureRep(&data->texture);
     D3D_DestroyTextureRep(&data->utexture);
     D3D_DestroyTextureRep(&data->vtexture);
@@ -1527,6 +1566,13 @@ D3D_DestroyRenderer(SDL_Renderer * renderer)
                 data->shaders[i] = NULL;
             }
         }
+        /* Release all vertex buffers */
+        for (i = 0; i < SDL_arraysize(data->vertexBuffers); ++i) {
+            if (data->vertexBuffers[i]) {
+                IDirect3DVertexBuffer9_Release(data->vertexBuffers[i]);
+            }
+            data->vertexBuffers[i] = NULL;
+        }
         if (data->device) {
             IDirect3DDevice9_Release(data->device);
             data->device = NULL;
@@ -1544,8 +1590,10 @@ static int
 D3D_Reset(SDL_Renderer * renderer)
 {
     D3D_RenderData *data = (D3D_RenderData *) renderer->driverdata;
+    const Float4X4 d3dmatrix = MatrixIdentity();
     HRESULT result;
     SDL_Texture *texture;
+    int i;
 
     /* Release the default render target before reset */
     if (data->defaultRenderTarget) {
@@ -1564,6 +1612,14 @@ D3D_Reset(SDL_Renderer * renderer)
         } else {
             D3D_RecreateTexture(renderer, texture);
         }
+    }
+
+    /* Release all vertex buffers */
+    for (i = 0; i < SDL_arraysize(data->vertexBuffers); ++i) {
+        if (data->vertexBuffers[i]) {
+            IDirect3DVertexBuffer9_Release(data->vertexBuffers[i]);
+        }
+        data->vertexBuffers[i] = NULL;
     }
 
     result = IDirect3DDevice9_Reset(data->device, &data->pparams);
@@ -1587,6 +1643,13 @@ D3D_Reset(SDL_Renderer * renderer)
     D3D_InitRenderState(data);
     D3D_SetRenderTargetInternal(renderer, renderer->target);
     data->drawstate.viewport_dirty = SDL_TRUE;
+    data->drawstate.cliprect_dirty = SDL_TRUE;
+    data->drawstate.cliprect_enabled_dirty = SDL_TRUE;
+    data->drawstate.texture = NULL;
+    data->drawstate.shader = NULL;
+    data->drawstate.blend = SDL_BLENDMODE_INVALID;
+    data->drawstate.is_copy_ex = SDL_FALSE;
+    IDirect3DDevice9_SetTransform(data->device, D3DTS_VIEW, (D3DMATRIX*)&d3dmatrix);
 
     /* Let the application know that render targets were reset */
     {
