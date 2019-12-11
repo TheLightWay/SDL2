@@ -335,7 +335,7 @@ if test x$enable_libc = xyes; then
         AC_DEFINE(HAVE_MPROTECT, 1, [ ])
         ]),
     )
-    AC_CHECK_FUNCS(malloc calloc realloc free getenv setenv putenv unsetenv qsort abs bcopy memset memcpy memmove wcslen wcscmp strlen strlcpy strlcat _strrev _strupr _strlwr strchr strrchr strstr itoa _ltoa _uitoa _ultoa strtol strtoul _i64toa _ui64toa strtoll strtoull atoi atof strcmp strncmp _stricmp strcasecmp _strnicmp strncasecmp vsscanf vsnprintf fopen64 fseeko fseeko64 sigaction setjmp nanosleep sysconf sysctlbyname getauxval poll _Exit)
+    AC_CHECK_FUNCS(malloc calloc realloc free getenv setenv putenv unsetenv qsort abs bcopy memset memcpy memmove wcslen wcslcpy wcslcat wcsdup wcsstr wcscmp wcsncmp strlen strlcpy strlcat _strrev _strupr _strlwr strchr strrchr strstr strtok_r itoa _ltoa _uitoa _ultoa strtol strtoul _i64toa _ui64toa strtoll strtoull atoi atof strcmp strncmp _stricmp strcasecmp _strnicmp strncasecmp vsscanf vsnprintf fopen64 fseeko fseeko64 sigaction setjmp nanosleep sysconf sysctlbyname getauxval poll _Exit)
 
     AC_CHECK_LIB(m, pow, [LIBS="$LIBS -lm"; EXTRA_LDFLAGS="$EXTRA_LDFLAGS -lm"])
     AC_CHECK_FUNCS(acos acosf asin asinf atan atanf atan2 atan2f ceil ceilf copysign copysignf cos cosf exp expf fabs fabsf floor floorf fmod fmodf log logf log10 log10f pow powf scalbn scalbnf sin sinf sqrt sqrtf tan tanf)
@@ -1299,6 +1299,82 @@ AS_HELP_STRING([--enable-libsamplerate-shared], [dynamically load libsamplerate 
             else
                 EXTRA_LDFLAGS="$EXTRA_LDFLAGS -lsamplerate"
             fi
+        fi
+    fi
+}
+
+dnl Check for ARM instruction support using gas syntax
+CheckARM()
+{
+    AC_ARG_ENABLE(arm-simd,
+AC_HELP_STRING([--enable-arm-simd], [use SIMD assembly blitters on ARM [[default=yes]]]),
+                  enable_arm_simd=$enableval, enable_arm_simd=yes)
+    if test x$enable_video = xyes -a x$enable_assembly = xyes -a x$enable_arm_simd = xyes; then
+        save_CFLAGS="$CFLAGS"
+        have_arm_simd=no
+        CFLAGS="-x assembler-with-cpp $CFLAGS"
+        
+        AC_MSG_CHECKING(for ARM SIMD)
+        AC_COMPILE_IFELSE([AC_LANG_SOURCE([[
+        .text
+        .arch armv6
+        .object_arch armv4
+        .arm
+        .altmacro
+        #ifndef __ARM_EABI__
+        #error EABI is required (to be sure that calling conventions are compatible)
+        #endif
+        pld [r0]
+        uqadd8 r0, r0, r0
+        ]])], have_arm_simd=yes)
+        AC_MSG_RESULT($have_arm_simd)
+        
+        CFLAGS="$save_CFLAGS"
+        
+        if test x$have_arm_simd = xyes; then
+            AC_DEFINE(SDL_ARM_SIMD_BLITTERS)
+dnl            SOURCES="$SOURCES $srcdir/src/video/arm/pixman-arm-simd*.c"
+            SOURCES="$SOURCES $srcdir/src/video/arm/pixman-arm-simd*.S"
+            WARN_ABOUT_ARM_SIMD_ASM_MIT="yes"
+        fi
+    fi
+}
+
+dnl Check for ARM NEON instruction support using gas syntax
+CheckNEON()
+{
+    AC_ARG_ENABLE(arm-neon,
+AC_HELP_STRING([--enable-arm-neon], [use NEON assembly blitters on ARM [[default=yes]]]),
+                  enable_arm_neon=$enableval, enable_arm_neon=yes)
+    if test x$enable_video = xyes -a x$enable_assembly = xyes -a x$enable_arm_neon = xyes; then
+        save_CFLAGS="$CFLAGS"
+        have_arm_neon=no
+        CFLAGS="-x assembler-with-cpp $CFLAGS"
+        
+        AC_MSG_CHECKING(for ARM NEON)
+        AC_COMPILE_IFELSE([AC_LANG_SOURCE([[
+        .text
+        .fpu neon
+        .arch armv7a
+        .object_arch armv4
+        .eabi_attribute 10, 0
+        .arm
+        .altmacro
+        #ifndef __ARM_EABI__
+        #error EABI is required (to be sure that calling conventions are compatible)
+        #endif
+        pld [r0]
+        vmovn.u16 d0, q0
+        ]])], have_arm_neon=yes)
+        AC_MSG_RESULT($have_arm_neon)
+        
+        CFLAGS="$save_CFLAGS"
+        
+        if test x$have_arm_neon = xyes; then
+            AC_DEFINE(SDL_ARM_NEON_BLITTERS)
+dnl            SOURCES="$SOURCES $srcdir/src/video/arm/pixman-arm-neon*.c"
+            SOURCES="$SOURCES $srcdir/src/video/arm/pixman-arm-neon*.S"
+            WARN_ABOUT_ARM_NEON_ASM_MIT="yes"
         fi
     fi
 }
@@ -3239,6 +3315,7 @@ AS_HELP_STRING([--enable-hidapi], [use HIDAPI for low level joystick drivers [[d
             AC_DEFINE(SDL_JOYSTICK_HIDAPI, 1, [ ])
             EXTRA_CFLAGS="$EXTRA_CFLAGS -I$srcdir/src/hidapi/hidapi"
             SOURCES="$SOURCES $srcdir/src/joystick/hidapi/*.c"
+            SOURCES="$SOURCES $srcdir/src/hidapi/SDL_hidapi.c"
 
             if test x$have_libusb_h = xyes; then
                 EXTRA_CFLAGS="$EXTRA_CFLAGS $LIBUSB_CFLAGS"
@@ -3266,14 +3343,7 @@ AS_HELP_STRING([--enable-hidapi], [use HIDAPI for low level joystick drivers [[d
                     AC_DEFINE_UNQUOTED(SDL_LIBUSB_DYNAMIC, "$libusb_lib", [ ])
                 fi
             else
-                case "$host" in
-                *-*-cygwin* | *-*-mingw32* )
-                    SOURCES="$SOURCES $srcdir/src/hidapi/windows/hid.c"
-                    ;;
-                *-*-darwin* )
-                    SOURCES="$SOURCES $srcdir/src/hidapi/mac/hid.c"
-                    ;;
-                esac
+                SOURCES="$SOURCES $srcdir/src/hidapi/SDL_hidapi.c"
             fi
         fi
 
@@ -3396,6 +3466,8 @@ case "$host" in
         CheckDiskAudio
         CheckDummyAudio
         CheckDLOPEN
+        CheckARM
+        CheckNEON
         CheckOSS
         CheckALSA
         CheckPulseAudio
@@ -4099,7 +4171,7 @@ VERSION_OBJECTS=`echo $VERSION_SOURCES`
 VERSION_DEPENDS=`echo $VERSION_SOURCES`
 VERSION_OBJECTS=`echo "$VERSION_OBJECTS" | sed 's,[[^ ]]*/\([[^ ]]*\)\.rc,$(objects)/\1.o,g'`
 VERSION_DEPENDS=`echo "$VERSION_DEPENDS" | sed "s,\\([[^ ]]*\\)/\\([[^ ]]*\\)\\.rc,\\\\
-\\$(objects)/\\2.o: \\1/\\2.rc\\\\
+\\$(objects)/\\2.o: \\1/\\2.rc \\$(objects)/.created\\\\
 	\\$(WINDRES) \\$< \\$@,g"`
 
 SDLMAIN_OBJECTS=`echo $SDLMAIN_SOURCES`
@@ -4248,6 +4320,23 @@ if test x$have_fcitx_frontend_h_hdr = xyes; then
 else
     SUMMARY="${SUMMARY}Using fcitx         : NO\n"
 fi
+
+if test x$WARN_ABOUT_ARM_SIMD_ASM_MIT = xyes; then
+    SUMMARY="${SUMMARY}\nSDL is being built with ARM SIMD optimizations, which\n"
+    SUMMARY="${SUMMARY}uses code licensed under the MIT license. If this is a\n"
+    SUMMARY="${SUMMARY}problem, please disable that code by rerunning the\n"
+    SUMMARY="${SUMMARY}configure script with:\n"
+    SUMMARY="${SUMMARY}\n    --disable-arm-simd\n"
+fi
+
+if test x$WARN_ABOUT_ARM_NEON_ASM_MIT = xyes; then
+    SUMMARY="${SUMMARY}\nSDL is being built with ARM NEON optimizations, which\n"
+    SUMMARY="${SUMMARY}uses code licensed under the MIT license. If this is a\n"
+    SUMMARY="${SUMMARY}problem, please disable that code by rerunning the\n"
+    SUMMARY="${SUMMARY}configure script with:\n"
+    SUMMARY="${SUMMARY}\n    --disable-arm-neon\n"
+fi
+
 AC_CONFIG_COMMANDS([summary], [echo -en "$SUMMARY"], [SUMMARY="$SUMMARY"])
 
 AC_OUTPUT

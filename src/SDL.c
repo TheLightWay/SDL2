@@ -56,8 +56,8 @@ extern int SDL_HelperWindowDestroy(void);
 /* This is not declared in any header, although it is shared between some
     parts of SDL, because we don't want anything calling it without an
     extremely good reason. */
-extern SDL_NORETURN void SDL_ExitProcess(const int exitcode);
-SDL_NORETURN void SDL_ExitProcess(const int exitcode)
+extern SDL_NORETURN void SDL_ExitProcess(int exitcode);
+SDL_NORETURN void SDL_ExitProcess(int exitcode)
 {
 #ifdef __WIN32__
     /* "if you do not know the state of all threads in your process, it is

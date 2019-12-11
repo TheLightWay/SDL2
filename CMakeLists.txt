@@ -47,7 +47,7 @@ set(SDL_INTERFACE_AGE 0)
 set(SDL_BINARY_AGE 11)
 set(SDL_VERSION "${SDL_MAJOR_VERSION}.${SDL_MINOR_VERSION}.${SDL_MICRO_VERSION}")
 # the following should match the versions in Xcode project file:
-set(DYLIB_CURRENT_VERSION 10.0.0)
+set(DYLIB_CURRENT_VERSION 12.0.0)
 set(DYLIB_COMPATIBILITY_VERSION 1.0.0)
 
 # Set defaults preventing destination file conflicts
@@ -329,6 +329,8 @@ set_option(SSE                 "Use SSE assembly routines" ${OPT_DEF_ASM})
 set_option(SSE2                "Use SSE2 assembly routines" ${OPT_DEF_SSEMATH})
 set_option(SSE3                "Use SSE3 assembly routines" ${OPT_DEF_SSEMATH})
 set_option(ALTIVEC             "Use Altivec assembly routines" ${OPT_DEF_ASM})
+set_option(ARMSIMD             "use SIMD assembly blitters on ARM" ON)
+set_option(ARMNEON             "use NEON assembly blitters on ARM" ON)
 set_option(DISKAUDIO           "Support the disk writer audio driver" ON)
 set_option(DUMMYAUDIO          "Support the dummy audio driver" ON)
 set_option(VIDEO_DIRECTFB      "Use DirectFB video driver" OFF)
@@ -671,6 +673,61 @@ if(ASSEMBLY)
         endif()
       endif()
     endif()
+
+    if(ARMSIMD)
+      set(ORIG_CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS}")
+      set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} -x assembler-with-cpp")
+      check_c_source_compiles("
+        .text
+        .arch armv6
+        .object_arch armv4
+        .arm
+        .altmacro
+        #ifndef __ARM_EABI__
+        #error EABI is required (to be sure that calling conventions are compatible)
+        #endif
+        pld [r0]
+        uqadd8 r0, r0, r0
+      " ARMSIMD_FOUND)
+      set(CMAKE_REQUIRED_FLAGS "${ORIG_CMAKE_REQUIRED_FLAGS}")
+
+      if(ARMSIMD_FOUND)
+        set(HAVE_ARMSIMD TRUE)
+        set(SDL_ARM_SIMD_BLITTERS 1)
+        file(GLOB ARMSIMD_SOURCES ${SDL2_SOURCE_DIR}/src/video/arm/pixman-arm-simd*.S)
+        set(SOURCE_FILES ${SOURCE_FILES} ${ARMSIMD_SOURCES})
+        set(WARN_ABOUT_ARM_SIMD_ASM_MIT TRUE)
+      endif()
+    endif()
+
+    if(ARMNEON)
+      set(ORIG_CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS}")
+      set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} -x assembler-with-cpp")
+      check_c_source_compiles("
+        .text
+        .fpu neon
+        .arch armv7a
+        .object_arch armv4
+        .eabi_attribute 10, 0
+        .arm
+        .altmacro
+        #ifndef __ARM_EABI__
+        #error EABI is required (to be sure that calling conventions are compatible)
+        #endif
+        pld [r0]
+        vmovn.u16 d0, q0
+      " ARMNEON_FOUND)
+      set(CMAKE_REQUIRED_FLAGS "${ORIG_CMAKE_REQUIRED_FLAGS}")
+
+      if(ARMNEON_FOUND)
+        set(HAVE_ARMNEON TRUE)
+        set(SDL_ARM_NEON_BLITTERS 1)
+        file(GLOB ARMNEON_SOURCES ${SDL2_SOURCE_DIR}/src/video/arm/pixman-arm-neon*.S)
+        set(SOURCE_FILES ${SOURCE_FILES} ${ARMNEON_SOURCES})
+        set(WARN_ABOUT_ARM_NEON_ASM_MIT TRUE)
+      endif()
+    endif()
+
   elseif(MSVC_VERSION GREATER 1500)
     # TODO: SDL_cpuinfo.h needs to support the user's configuration wish
     # for MSVC - right now it is always activated
@@ -703,10 +760,10 @@ if(LIBC)
     set(HAVE_SIGNAL_H 1)
     foreach(_FN
             malloc calloc realloc free qsort abs memset memcpy memmove memcmp
-            wcslen wcscmp
+            wcslen wcslcpy wcslcat wcsdup wcsstr wcscmp wcsncmp
             strlen _strrev _strupr _strlwr strchr strrchr strstr itoa _ltoa
             _ultoa strtol strtoul strtoll strtod atoi atof strcmp strncmp
-            _stricmp _strnicmp sscanf
+            _stricmp _strnicmp strtok_s sscanf
             acos acosf asin asinf atan atanf atan2 atan2f ceil ceilf
             copysign copysignf cos cosf exp expf fabs fabsf floor floorf fmod fmodf
             log logf log10 log10f pow powf scalbn scalbnf sin sinf sqrt sqrtf tan tanf)
@@ -740,10 +797,11 @@ if(LIBC)
     foreach(_FN
             strtod malloc calloc realloc free getenv setenv putenv unsetenv
             qsort abs bcopy memset memcpy memmove memcmp strlen strlcpy strlcat
-            _strrev _strupr _strlwr strchr strrchr strstr itoa _ltoa
+            _strrev _strupr _strlwr strchr strrchr strstr strtok_r itoa _ltoa
             _uitoa _ultoa strtol strtoul _i64toa _ui64toa strtoll strtoull
             atoi atof strcmp strncmp _stricmp strcasecmp _strnicmp strncasecmp
-            vsscanf vsnprintf fopen64 fseeko fseeko64 sigaction setjmp
+            wcscmp wcsdup wcslcat wcslcpy wcslen wcsncmp wcsstr
+            sscanf vsscanf vsnprintf fopen64 fseeko fseeko64 sigaction setjmp
             nanosleep sysconf sysctlbyname getauxval poll _Exit
             )
       string(TOUPPER ${_FN} _UPPER)
@@ -755,8 +813,10 @@ if(LIBC)
     if(HAVE_LIBM)
       set(CMAKE_REQUIRED_LIBRARIES m)
       foreach(_FN
-              atan atan2 ceil copysign cos cosf fabs floor log pow scalbn sin
-              sinf sqrt sqrtf tan tanf acos asin)
+              atan atan2 atanf atan2f ceil ceilf copysign copysignf cos cosf
+              exp expf fabs fabsf floor floorf fmod fmodf log logf log10 log10f
+              pow powf scalbn scalbnf sin sinf sqrt sqrtf tan tanf acos acosf
+              asin asinf)
         string(TOUPPER ${_FN} _UPPER)
         set(_HAVEVAR "HAVE_${_UPPER}")
         check_function_exists("${_FN}" ${_HAVEVAR})
@@ -1927,6 +1987,24 @@ if(UNIX)
   message(STATUS "")
 endif()
 
+if(WARN_ABOUT_ARM_SIMD_ASM_MIT)
+  message(STATUS "")
+  message(STATUS "SDL is being built with ARM SIMD optimizations, which")
+  message(STATUS "uses code licensed under the MIT license. If this is a")
+  message(STATUS "problem, please disable that code by rerunning CMake with:")
+  message(STATUS "")
+  message(STATUS "    -DARMSIMD=OFF")
+endif()
+
+if(WARN_ABOUT_ARM_NEON_ASM_MIT)
+  message(STATUS "")
+  message(STATUS "SDL is being built with ARM NEON optimizations, which")
+  message(STATUS "uses code licensed under the MIT license. If this is a")
+  message(STATUS "problem, please disable that code by rerunning CMake with:")
+  message(STATUS "")
+  message(STATUS "    -DARMNEON=OFF")
+endif()
+
 # Ensure that the extra cflags are used at compile time
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${EXTRA_CFLAGS}")
 
@@ -1935,7 +2013,7 @@ add_library(SDL2main STATIC ${SDLMAIN_SOURCES})
 target_include_directories(SDL2main PUBLIC "$<BUILD_INTERFACE:${SDL2_SOURCE_DIR}/include>" $<INSTALL_INTERFACE:include/SDL2>)
 set(_INSTALL_LIBS "SDL2main")
 if (NOT ANDROID)
-  set_target_properties(SDL2main PROPERTIES DEBUG_POSTFIX ${SDL_CMAKE_DEBUG_POSTFIX})
+  set_target_properties(SDL2main PROPERTIES DEBUG_POSTFIX "${SDL_CMAKE_DEBUG_POSTFIX}")
 endif()
 
 if (ANDROID AND HAVE_HIDAPI)
@@ -1969,7 +2047,7 @@ if(SDL_SHARED)
   target_link_libraries(SDL2 ${EXTRA_LIBS} ${EXTRA_LDFLAGS})
   target_include_directories(SDL2 PUBLIC "$<BUILD_INTERFACE:${SDL2_SOURCE_DIR}/include>" $<INSTALL_INTERFACE:include/SDL2>)
   if (NOT ANDROID)
-    set_target_properties(SDL2 PROPERTIES DEBUG_POSTFIX ${SDL_CMAKE_DEBUG_POSTFIX})
+    set_target_properties(SDL2 PROPERTIES DEBUG_POSTFIX "${SDL_CMAKE_DEBUG_POSTFIX}")
   endif()
   if(IOS OR TVOS)
     set_property(TARGET SDL2 APPEND_STRING PROPERTY COMPILE_FLAGS "-fobjc-arc")
@@ -2015,7 +2093,7 @@ if(SDL_STATIC)
   target_link_libraries(SDL2-static ${EXTRA_LIBS} ${EXTRA_LDFLAGS})
   target_include_directories(SDL2-static PUBLIC "$<BUILD_INTERFACE:${SDL2_SOURCE_DIR}/include>" $<INSTALL_INTERFACE:include/SDL2>)
   if (NOT ANDROID)
-    set_target_properties(SDL2-static PROPERTIES DEBUG_POSTFIX ${SDL_CMAKE_DEBUG_POSTFIX})
+    set_target_properties(SDL2-static PROPERTIES DEBUG_POSTFIX "${SDL_CMAKE_DEBUG_POSTFIX}")
   endif()
   if(IOS OR TVOS)
     set_property(TARGET SDL2-static APPEND_STRING PROPERTY COMPILE_FLAGS "-fobjc-arc")

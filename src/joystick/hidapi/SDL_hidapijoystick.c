@@ -31,6 +31,7 @@
 #include "SDL_joystick.h"
 #include "../SDL_sysjoystick.h"
 #include "SDL_hidapijoystick_c.h"
+#include "../../SDL_hints_c.h"
 
 #if defined(__WIN32__)
 #include "../../core/windows/SDL_windows.h"
@@ -409,11 +410,16 @@ HIDAPI_XboxControllerName(Uint16 vendor_id, Uint16 product_id)
         { MAKE_VIDPID(0x045e, 0x028e), "Microsoft X-Box 360 pad" },
         { MAKE_VIDPID(0x045e, 0x028f), "Microsoft X-Box 360 pad v2" },
         { MAKE_VIDPID(0x045e, 0x0291), "Xbox 360 Wireless Receiver (XBOX)" },
+        { MAKE_VIDPID(0x045e, 0x02a1), "Microsoft X-Box 360 pad" },
         { MAKE_VIDPID(0x045e, 0x02d1), "Microsoft X-Box One pad" },
         { MAKE_VIDPID(0x045e, 0x02dd), "Microsoft X-Box One pad (Firmware 2015)" },
+        { MAKE_VIDPID(0x045e, 0x02e0), "Microsoft X-Box One S pad" },
         { MAKE_VIDPID(0x045e, 0x02e3), "Microsoft X-Box One Elite pad" },
         { MAKE_VIDPID(0x045e, 0x02ea), "Microsoft X-Box One S pad" },
-        { MAKE_VIDPID(0x045e, 0x02ff), "Microsoft X-Box One pad" },
+        { MAKE_VIDPID(0x045e, 0x02fd), "Microsoft X-Box One S pad" },
+        { MAKE_VIDPID(0x045e, 0x02ff), "Microsoft X-Box One Elite pad" },
+        { MAKE_VIDPID(0x045e, 0x0b00), "Microsoft X-Box One Elite Series 2 pad" },
+        { MAKE_VIDPID(0x045e, 0x0b05), "Microsoft X-Box One Elite Series 2 pad" },
         { MAKE_VIDPID(0x045e, 0x0719), "Xbox 360 Wireless Receiver" },
         { MAKE_VIDPID(0x046d, 0xc21d), "Logitech Gamepad F310" },
         { MAKE_VIDPID(0x046d, 0xc21e), "Logitech Gamepad F510" },
@@ -460,6 +466,7 @@ HIDAPI_XboxControllerName(Uint16 vendor_id, Uint16 product_id)
         { MAKE_VIDPID(0x0e6f, 0x021f), "Rock Candy Gamepad for Xbox 360" },
         { MAKE_VIDPID(0x0e6f, 0x0246), "Rock Candy Gamepad for Xbox One 2015" },
         { MAKE_VIDPID(0x0e6f, 0x02a4), "PDP Wired Controller for Xbox One - Stealth Series" },
+        { MAKE_VIDPID(0x0e6f, 0x02a6), "PDP Wired Controller for Xbox One - Camo Series" },
         { MAKE_VIDPID(0x0e6f, 0x02ab), "PDP Controller for Xbox One" },
         { MAKE_VIDPID(0x0e6f, 0x0301), "Logic3 Controller" },
         { MAKE_VIDPID(0x0e6f, 0x0346), "Rock Candy Gamepad for Xbox One 2016" },
@@ -475,6 +482,11 @@ HIDAPI_XboxControllerName(Uint16 vendor_id, Uint16 product_id)
         { MAKE_VIDPID(0x0f0d, 0x0063), "Hori Real Arcade Pro Hayabusa (USA) Xbox One" },
         { MAKE_VIDPID(0x0f0d, 0x0067), "HORIPAD ONE" },
         { MAKE_VIDPID(0x0f0d, 0x0078), "Hori Real Arcade Pro V Kai Xbox One" },
+        { MAKE_VIDPID(0x0f0d, 0x0084), "HORI Fighting Commander" },
+        { MAKE_VIDPID(0x0f0d, 0x0085), "HORI Fighting Commander" },
+        { MAKE_VIDPID(0x0f0d, 0x0086), "HORI Fighting Commander" },
+        { MAKE_VIDPID(0x1038, 0x1430), "SteelSeries Stratus Duo" },
+        { MAKE_VIDPID(0x1038, 0x1431), "SteelSeries Stratus Duo" },
         { MAKE_VIDPID(0x11c9, 0x55f0), "Nacon GC-100XF" },
         { MAKE_VIDPID(0x12ab, 0x0004), "Honey Bee Xbox360 dancepad" },
         { MAKE_VIDPID(0x12ab, 0x0301), "PDP AFTERGLOW AX.1" },
@@ -544,13 +556,21 @@ HIDAPI_XboxControllerName(Uint16 vendor_id, Uint16 product_id)
         { MAKE_VIDPID(0x24c6, 0x5506), "Hori SOULCALIBUR V Stick" },
         { MAKE_VIDPID(0x24c6, 0x550d), "Hori GEM Xbox controller" },
         { MAKE_VIDPID(0x24c6, 0x550e), "Hori Real Arcade Pro V Kai 360" },
+        { MAKE_VIDPID(0x24c6, 0x5510), "Hori Fighting Commander ONE" },
         { MAKE_VIDPID(0x24c6, 0x551a), "PowerA FUSION Pro Controller" },
         { MAKE_VIDPID(0x24c6, 0x561a), "PowerA FUSION Controller" },
+        { MAKE_VIDPID(0x24c6, 0x591a), "PowerA FUSION Pro Controller" },
         { MAKE_VIDPID(0x24c6, 0x5b00), "ThrustMaster Ferrari 458 Racing Wheel" },
         { MAKE_VIDPID(0x24c6, 0x5b02), "Thrustmaster, Inc. GPX Controller" },
         { MAKE_VIDPID(0x24c6, 0x5b03), "Thrustmaster Ferrari 458 Racing Wheel" },
         { MAKE_VIDPID(0x24c6, 0x5d04), "Razer Sabertooth" },
+        { MAKE_VIDPID(0x24c6, 0x791a), "PowerA Fusion Fight Pad" },
+        { MAKE_VIDPID(0x24c6, 0xfafa), "Aplay Controller" },
+        { MAKE_VIDPID(0x24c6, 0xfafb), "Aplay Controller" },
+        { MAKE_VIDPID(0x24c6, 0xfafc), "Afterglow Gamepad 1" },
+        { MAKE_VIDPID(0x24c6, 0xfafd), "Afterglow Gamepad 3" },
         { MAKE_VIDPID(0x24c6, 0xfafe), "Rock Candy Gamepad for Xbox 360" },
+        { MAKE_VIDPID(0x2e24, 0x1688), "Hyperkin X91" },
     };
     int i;
     Uint32 vidpid = MAKE_VIDPID(vendor_id, product_id);
@@ -564,13 +584,13 @@ HIDAPI_XboxControllerName(Uint16 vendor_id, Uint16 product_id)
 }
 
 static SDL_bool
-HIDAPI_IsDeviceSupported(Uint16 vendor_id, Uint16 product_id, Uint16 version)
+HIDAPI_IsDeviceSupported(Uint16 vendor_id, Uint16 product_id, Uint16 version, const char *name)
 {
     int i;
 
     for (i = 0; i < SDL_arraysize(SDL_HIDAPI_drivers); ++i) {
         SDL_HIDAPI_DeviceDriver *driver = SDL_HIDAPI_drivers[i];
-        if (driver->enabled && driver->IsSupportedDevice(vendor_id, product_id, version, -1)) {
+        if (driver->enabled && driver->IsSupportedDevice(vendor_id, product_id, version, -1, name)) {
             return SDL_TRUE;
         }
     }
@@ -599,7 +619,7 @@ HIDAPI_GetDeviceDriver(SDL_HIDAPI_Device *device)
 
     for (i = 0; i < SDL_arraysize(SDL_HIDAPI_drivers); ++i) {
         SDL_HIDAPI_DeviceDriver *driver = SDL_HIDAPI_drivers[i];
-        if (driver->enabled && driver->IsSupportedDevice(device->vendor_id, device->product_id, device->version, device->interface_number)) {
+        if (driver->enabled && driver->IsSupportedDevice(device->vendor_id, device->product_id, device->version, device->interface_number, device->name)) {
             return driver;
         }
     }
@@ -641,7 +661,7 @@ SDL_HIDAPIDriverHintChanged(void *userdata, const char *name, const char *oldVal
 {
     int i;
     SDL_HIDAPI_Device *device = SDL_HIDAPI_devices;
-    SDL_bool enabled = (!hint || !*hint || ((*hint != '0') && (SDL_strcasecmp(hint, "false") != 0)));
+    SDL_bool enabled = SDL_GetStringBoolean(hint, SDL_TRUE);
 
     if (SDL_strcmp(name, SDL_HINT_JOYSTICK_HIDAPI) == 0) {
         for (i = 0; i < SDL_arraysize(SDL_HIDAPI_drivers); ++i) {
@@ -786,7 +806,11 @@ HIDAPI_AddDevice(struct hid_device_info *info)
             size_t name_size = (SDL_strlen(manufacturer_string) + 1 + SDL_strlen(product_string) + 1);
             device->name = (char *)SDL_malloc(name_size);
             if (device->name) {
-                SDL_snprintf(device->name, name_size, "%s %s", manufacturer_string, product_string);
+                if (SDL_strncasecmp(manufacturer_string, product_string, SDL_strlen(manufacturer_string)) == 0) {
+                    SDL_strlcpy(device->name, product_string, name_size);
+                } else {
+                    SDL_snprintf(device->name, name_size, "%s %s", manufacturer_string, product_string);
+                }
             }
         }
         if (manufacturer_string) {
@@ -914,7 +938,7 @@ HIDAPI_UpdateDeviceList(void)
 }
 
 SDL_bool
-HIDAPI_IsDevicePresent(Uint16 vendor_id, Uint16 product_id, Uint16 version)
+HIDAPI_IsDevicePresent(Uint16 vendor_id, Uint16 product_id, Uint16 version, const char *name)
 {
     SDL_HIDAPI_Device *device;
 
@@ -924,13 +948,17 @@ HIDAPI_IsDevicePresent(Uint16 vendor_id, Uint16 product_id, Uint16 version)
     }
 
     /* Don't update the device list for devices we know aren't supported */
-    if (!HIDAPI_IsDeviceSupported(vendor_id, product_id, version)) {
+    if (!HIDAPI_IsDeviceSupported(vendor_id, product_id, version, name)) {
         return SDL_FALSE;
     }
 
     /* Make sure the device list is completely up to date when we check for device presence */
     HIDAPI_UpdateDeviceList();
 
+    /* Note that this isn't a perfect check - there may be multiple devices with 0 VID/PID,
+       or a different name than we have it listed here, etc, but if we support the device
+       and we have something similar in our device list, mark it as present.
+     */
     device = SDL_HIDAPI_devices;
     while (device) {
         if (device->vendor_id == vendor_id && device->product_id == product_id && device->driver) {
