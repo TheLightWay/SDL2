@@ -1,6 +1,6 @@
 /*
   Simple DirectMedia Layer
-  Copyright (C) 1997-2019 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 1997-2020 Sam Lantinga <slouken@libsdl.org>
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -124,7 +124,7 @@ HAIKU_CreateDevice(int devindex)
 
 VideoBootStrap HAIKU_bootstrap = {
     "haiku", "Haiku graphics",
-    HAIKU_Available, HAIKU_CreateDevice
+    HAIKU_CreateDevice
 };
 
 void HAIKU_DeleteDevice(SDL_VideoDevice * device)
@@ -183,11 +183,6 @@ int HAIKU_VideoInit(_THIS)
 
     /* We're done! */
     return (0);
-}
-
-int HAIKU_Available(void)
-{
-    return (1);
 }
 
 void HAIKU_VideoQuit(_THIS)
